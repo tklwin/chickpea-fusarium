@@ -9,23 +9,41 @@ Instructions:
 3. Enable GPU (P100 or T4)
 4. Add W&B API key to Kaggle Secrets (key name: WANDB_API_KEY)
 5. Copy this entire file into a single code cell
-6. ⭐ ONLY CHANGE THE 2 LINES IN "EXPERIMENT CONFIG" SECTION BELOW ⭐
+6. ⭐ MODIFY THE "EXPERIMENT CONFIG" SECTION BELOW ⭐
 7. Click "Save Version" > "Save & Run All (Commit)"
 """
 
 # ╔═══════════════════════════════════════════════════════════╗
-# ║  ⭐ EXPERIMENT CONFIG - ONLY CHANGE THESE 2 LINES! ⭐     ║
+# ║  ⭐ EXPERIMENT CONFIG - MODIFY FOR EACH RUN ⭐            ║
 # ╚═══════════════════════════════════════════════════════════╝
 
-EXPERIMENT_NAME = "exp1_squeezenet_baseline"   # ← Change for each run
-MODEL_NAME = "squeezenet1_1"                   # ← Options below
+# Experiment naming: use descriptive names for W&B tracking
+# Examples:
+#   "squeezenet_baseline_lr1e3"   - Phase 1a: baseline without CBAM
+#   "squeezenet_cbam_lr1e3"       - Phase 1b: with CBAM (after baseline)
 
-# MODEL_NAME options:
-#   "squeezenet1_1"       - Baseline SqueezeNet (724K params)
-#   "squeezenet1_1_cbam"  - SqueezeNet + CBAM attention
-#   "mobilenetv2"         - MobileNetV2 comparison
-#   "efficientnet_b0"     - EfficientNet-B0 comparison
-#   "shufflenetv2"        - ShuffleNetV2 comparison
+EXPERIMENT_NAME = "squeezenet_baseline_v1"
+
+# Model: Start with baseline, add CBAM later
+MODEL_NAME = "squeezenet1_1"          # Phase 1a: baseline
+# MODEL_NAME = "squeezenet1_1_cbam"   # Phase 1b: uncomment after baseline
+
+# Hyperparameters to tune
+LEARNING_RATE = 1e-3      # Try: 1e-3, 5e-4, 1e-4, 3e-4
+DROPOUT = 0.5             # Try: 0.3, 0.4, 0.5, 0.6
+BATCH_SIZE = 32           # Try: 16, 32, 64
+EPOCHS = 50               # Try: 50, 75, 100
+WEIGHT_DECAY = 1e-4       # Try: 1e-4, 1e-5, 5e-5
+SCHEDULER = "cosine"      # Options: "cosine", "step", "plateau"
+OPTIMIZER = "adamw"       # Options: "adamw", "sgd"
+
+# Class imbalance strategy
+USE_CLASS_WEIGHTS = True  # Try: True vs False
+USE_WEIGHTED_SAMPLER = False  # Alternative to class weights
+
+# ╔═══════════════════════════════════════════════════════════╗
+# ║  END OF EXPERIMENT CONFIG                                 ║
+# ╚═══════════════════════════════════════════════════════════╝
 
 # ============================================================
 # SETUP: Clone repository and install dependencies
@@ -58,7 +76,7 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "albumentations", 
 print("✓ Dependencies installed")
 
 # ============================================================
-# FIXED CONFIG (don't change unless needed)
+# BUILD CONFIG FROM EXPERIMENT SETTINGS
 # ============================================================
 
 CONFIG = {
@@ -66,22 +84,22 @@ CONFIG = {
     "data_dir": "/kaggle/input/fusarium-wilt-disease-in-chickpea-dataset/FUSARIUM-22/dataset_raw",
     "splits_dir": "/kaggle/working/splits",
     
-    # Model (uses MODEL_NAME from above)
+    # Model
     "model_name": MODEL_NAME,
     "pretrained": True,
-    "dropout": 0.5,
+    "dropout": DROPOUT,
     
-    # Training hyperparameters (same for fair comparison)
-    "batch_size": 32,
-    "epochs": 50,
-    "learning_rate": 1e-3,
-    "weight_decay": 1e-4,
-    "optimizer": "adamw",
-    "scheduler": "cosine",
+    # Training hyperparameters
+    "batch_size": BATCH_SIZE,
+    "epochs": EPOCHS,
+    "learning_rate": LEARNING_RATE,
+    "weight_decay": WEIGHT_DECAY,
+    "optimizer": OPTIMIZER,
+    "scheduler": SCHEDULER,
     
     # Class imbalance handling
-    "use_class_weights": True,
-    "use_weighted_sampler": False,
+    "use_class_weights": USE_CLASS_WEIGHTS,
+    "use_weighted_sampler": USE_WEIGHTED_SAMPLER,
     
     # W&B tracking
     "wandb_enabled": True,
