@@ -85,8 +85,9 @@ splits/
 wandb/
 outputs/
 
-# Data (should not be in repo)
-data/
+# Data files (images, datasets - not source code)
+# Note: src/data/ is source code, NOT ignored
+/data/
 *.jpg
 *.jpeg
 *.png
