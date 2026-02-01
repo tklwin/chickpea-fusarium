@@ -287,15 +287,16 @@ class Trainer:
         return epoch_loss, epoch_acc
     
     @torch.no_grad()
-    def validate(self, dataloader: DataLoader = None) -> Dict[str, float]:
+    def validate(self, dataloader: DataLoader = None, compute_auc: bool = True) -> Dict[str, float]:
         """
-        Validate the model.
+        Validate the model with comprehensive research-grade metrics.
         
         Args:
             dataloader: DataLoader to use (default: val)
+            compute_auc: Whether to compute AUC-ROC (requires storing probabilities)
         
         Returns:
-            Dict with loss, accuracy, and other metrics
+            Dict with loss, accuracy, and all research-grade metrics
         """
         if dataloader is None:
             dataloader = self.dataloaders['val']
@@ -304,6 +305,7 @@ class Trainer:
         
         running_loss = 0.0
         all_preds = []
+        all_probs = []  # For AUC-ROC computation
         all_labels = []
         
         pbar = tqdm(dataloader, desc=f"Epoch {self.current_epoch + 1}/{self.config.training.epochs} [Val]")
@@ -316,17 +318,33 @@ class Trainer:
             loss = self.criterion(outputs, labels)
             
             running_loss += loss.item() * images.size(0)
+            
+            # Get predictions and probabilities
+            probs = torch.softmax(outputs, dim=1)
             _, predicted = outputs.max(1)
             
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
+            if compute_auc:
+                all_probs.extend(probs.cpu().numpy())
         
-        # Compute metrics
+        # Compute comprehensive metrics
         all_preds = np.array(all_preds)
         all_labels = np.array(all_labels)
+        all_probs = np.array(all_probs) if compute_auc else None
         
-        metrics = compute_metrics(all_labels, all_preds)
+        metrics = compute_metrics(
+            all_labels, 
+            all_preds, 
+            y_prob=all_probs,
+            num_classes=self.config.data.num_classes
+        )
         metrics['loss'] = running_loss / len(dataloader.dataset)
+        
+        # Store predictions for confusion matrix logging
+        self._last_val_preds = all_preds
+        self._last_val_labels = all_labels
+        self._last_val_probs = all_probs
         
         return metrics
     
@@ -361,23 +379,55 @@ class Trainer:
             self.history['val_acc'].append(val_metrics['accuracy'])
             self.history['val_f1'].append(val_metrics['f1'])
             
-            # Log to W&B
+            # Log to W&B (Research-Grade Metrics)
             if self.use_wandb:
                 log_dict = {
+                    # ===== Training Metrics =====
                     'epoch': epoch + 1,
                     'train/loss': train_loss,
                     'train/accuracy': train_acc,
+                    
+                    # ===== Core Validation Metrics =====
                     'val/loss': val_metrics['loss'],
                     'val/accuracy': val_metrics['accuracy'],
-                    'val/precision': val_metrics['precision'],
-                    'val/recall': val_metrics['recall'],
-                    'val/f1': val_metrics['f1'],
+                    'val/balanced_accuracy': val_metrics.get('balanced_accuracy', 0),
+                    
+                    # ===== Weighted Averages (accounts for class imbalance) =====
+                    'val/precision_weighted': val_metrics.get('precision_weighted', 0),
+                    'val/recall_weighted': val_metrics.get('recall_weighted', 0),
+                    'val/f1_weighted': val_metrics.get('f1_weighted', 0),
+                    
+                    # ===== Macro Averages (treats all classes equally) =====
+                    'val/precision_macro': val_metrics.get('precision_macro', 0),
+                    'val/recall_macro': val_metrics.get('recall_macro', 0),
+                    'val/f1_macro': val_metrics.get('f1_macro', 0),
+                    
+                    # ===== Advanced Metrics (Research-Grade) =====
+                    'val/cohen_kappa': val_metrics.get('cohen_kappa', 0),
+                    'val/mcc': val_metrics.get('mcc', 0),  # Matthews Correlation Coefficient
+                    
+                    # ===== Learning Rate =====
                     'learning_rate': self.optimizer.param_groups[0]['lr'],
                 }
                 
-                # Per-class metrics
-                for i in range(self.config.data.num_classes):
-                    log_dict[f'val/f1_class_{i}'] = val_metrics.get(f'f1_class_{i}', 0)
+                # ===== AUC-ROC Metrics (if available) =====
+                if 'auc_ovr_macro' in val_metrics:
+                    log_dict['val/auc_macro'] = val_metrics['auc_ovr_macro']
+                    log_dict['val/auc_weighted'] = val_metrics.get('auc_ovr_weighted', 0)
+                
+                # ===== Per-Class Metrics =====
+                class_names = self.config.data.class_names
+                for i, name in enumerate(class_names):
+                    log_dict[f'val/precision_{name}'] = val_metrics.get(f'precision_{name}', 0)
+                    log_dict[f'val/recall_{name}'] = val_metrics.get(f'recall_{name}', 0)
+                    log_dict[f'val/f1_{name}'] = val_metrics.get(f'f1_{name}', 0)
+                    log_dict[f'val/accuracy_{name}'] = val_metrics.get(f'accuracy_{name}', 0)
+                    if f'auc_{name}' in val_metrics:
+                        log_dict[f'val/auc_{name}'] = val_metrics[f'auc_{name}']
+                
+                # ===== Log Confusion Matrix every 10 epochs =====
+                if (epoch + 1) % 10 == 0 or epoch == 0:
+                    self._log_confusion_matrix_to_wandb(epoch + 1)
                 
                 wandb.log(log_dict)
             
@@ -431,30 +481,132 @@ class Trainer:
         # Evaluate
         test_metrics = self.validate(self.dataloaders['test'])
         
-        print(f"\nTest Results:")
-        print(f"  Accuracy: {test_metrics['accuracy'] * 100:.2f}%")
-        print(f"  Precision: {test_metrics['precision'] * 100:.2f}%")
-        print(f"  Recall: {test_metrics['recall'] * 100:.2f}%")
-        print(f"  F1 Score: {test_metrics['f1'] * 100:.2f}%")
+        # ===== Print Comprehensive Test Results =====
+        print(f"\n{'='*60}")
+        print("TEST SET RESULTS (Research-Grade Metrics)")
+        print(f"{'='*60}")
+        
+        print(f"\n[Overall Metrics]")
+        print(f"  Accuracy:          {test_metrics['accuracy'] * 100:.2f}%")
+        print(f"  Balanced Accuracy: {test_metrics.get('balanced_accuracy', 0) * 100:.2f}%")
+        
+        print(f"\n[Weighted Averages]")
+        print(f"  Precision: {test_metrics.get('precision_weighted', 0) * 100:.2f}%")
+        print(f"  Recall:    {test_metrics.get('recall_weighted', 0) * 100:.2f}%")
+        print(f"  F1 Score:  {test_metrics.get('f1_weighted', 0) * 100:.2f}%")
+        
+        print(f"\n[Macro Averages]")
+        print(f"  Precision: {test_metrics.get('precision_macro', 0) * 100:.2f}%")
+        print(f"  Recall:    {test_metrics.get('recall_macro', 0) * 100:.2f}%")
+        print(f"  F1 Score:  {test_metrics.get('f1_macro', 0) * 100:.2f}%")
+        
+        print(f"\n[Advanced Metrics]")
+        print(f"  Cohen's Kappa: {test_metrics.get('cohen_kappa', 0):.4f}")
+        print(f"  MCC:           {test_metrics.get('mcc', 0):.4f}")
+        if 'auc_ovr_macro' in test_metrics:
+            print(f"  AUC-ROC Macro: {test_metrics.get('auc_ovr_macro', 0):.4f}")
         
         # Per-class metrics
-        print(f"\nPer-class F1:")
-        for i, name in enumerate(self.config.data.class_names):
-            print(f"  {name}: {test_metrics.get(f'f1_class_{i}', 0) * 100:.2f}%")
+        print(f"\n[Per-Class Metrics]")
+        print(f"  {'Class':<15} {'Precision':>10} {'Recall':>10} {'F1':>10} {'Accuracy':>10}")
+        print(f"  {'-'*55}")
+        for name in self.config.data.class_names:
+            p = test_metrics.get(f'precision_{name}', 0) * 100
+            r = test_metrics.get(f'recall_{name}', 0) * 100
+            f1 = test_metrics.get(f'f1_{name}', 0) * 100
+            acc = test_metrics.get(f'accuracy_{name}', 0) * 100
+            print(f"  {name:<15} {p:>9.2f}% {r:>9.2f}% {f1:>9.2f}% {acc:>9.2f}%")
         
-        # Log to W&B
+        print(f"{'='*60}")
+        
+        # ===== Log to W&B (Comprehensive) =====
         if self.use_wandb:
-            wandb.log({
+            test_log = {
+                # Core metrics
                 'test/accuracy': test_metrics['accuracy'],
-                'test/precision': test_metrics['precision'],
-                'test/recall': test_metrics['recall'],
-                'test/f1': test_metrics['f1'],
-            })
+                'test/balanced_accuracy': test_metrics.get('balanced_accuracy', 0),
+                
+                # Weighted averages
+                'test/precision_weighted': test_metrics.get('precision_weighted', 0),
+                'test/recall_weighted': test_metrics.get('recall_weighted', 0),
+                'test/f1_weighted': test_metrics.get('f1_weighted', 0),
+                
+                # Macro averages
+                'test/precision_macro': test_metrics.get('precision_macro', 0),
+                'test/recall_macro': test_metrics.get('recall_macro', 0),
+                'test/f1_macro': test_metrics.get('f1_macro', 0),
+                
+                # Advanced
+                'test/cohen_kappa': test_metrics.get('cohen_kappa', 0),
+                'test/mcc': test_metrics.get('mcc', 0),
+            }
             
-            # Log summary metrics
+            # AUC if available
+            if 'auc_ovr_macro' in test_metrics:
+                test_log['test/auc_macro'] = test_metrics['auc_ovr_macro']
+                test_log['test/auc_weighted'] = test_metrics.get('auc_ovr_weighted', 0)
+            
+            # Per-class
+            for name in self.config.data.class_names:
+                test_log[f'test/precision_{name}'] = test_metrics.get(f'precision_{name}', 0)
+                test_log[f'test/recall_{name}'] = test_metrics.get(f'recall_{name}', 0)
+                test_log[f'test/f1_{name}'] = test_metrics.get(f'f1_{name}', 0)
+                test_log[f'test/accuracy_{name}'] = test_metrics.get(f'accuracy_{name}', 0)
+                if f'auc_{name}' in test_metrics:
+                    test_log[f'test/auc_{name}'] = test_metrics[f'auc_{name}']
+            
+            wandb.log(test_log)
+            
+            # ===== Log Final Confusion Matrix =====
+            self._log_confusion_matrix_to_wandb(epoch="test")
+            
+            # ===== W&B Summary (for easy comparison across runs) =====
             wandb.run.summary['best_val_accuracy'] = self.best_val_acc
+            wandb.run.summary['best_val_f1'] = self.best_val_f1
             wandb.run.summary['test_accuracy'] = test_metrics['accuracy']
-            wandb.run.summary['test_f1'] = test_metrics['f1']
+            wandb.run.summary['test_balanced_accuracy'] = test_metrics.get('balanced_accuracy', 0)
+            wandb.run.summary['test_f1_weighted'] = test_metrics.get('f1_weighted', 0)
+            wandb.run.summary['test_f1_macro'] = test_metrics.get('f1_macro', 0)
+            wandb.run.summary['test_cohen_kappa'] = test_metrics.get('cohen_kappa', 0)
+            wandb.run.summary['test_mcc'] = test_metrics.get('mcc', 0)
+            if 'auc_ovr_macro' in test_metrics:
+                wandb.run.summary['test_auc_macro'] = test_metrics['auc_ovr_macro']
+    
+    def _log_confusion_matrix_to_wandb(self, epoch):
+        """Log confusion matrix to W&B."""
+        if not self.use_wandb or not hasattr(self, '_last_val_labels'):
+            return
+            
+        try:
+            from sklearn.metrics import confusion_matrix
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            
+            cm = confusion_matrix(self._last_val_labels, self._last_val_preds)
+            
+            # Normalized confusion matrix
+            cm_norm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+            
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.heatmap(
+                cm_norm,
+                annot=True,
+                fmt='.2%',
+                cmap='Blues',
+                xticklabels=self.config.data.class_names,
+                yticklabels=self.config.data.class_names,
+                ax=ax
+            )
+            ax.set_xlabel('Predicted')
+            ax.set_ylabel('True')
+            ax.set_title(f'Confusion Matrix (Epoch {epoch})')
+            plt.tight_layout()
+            
+            wandb.log({f"confusion_matrix/epoch_{epoch}": wandb.Image(fig)})
+            plt.close(fig)
+            
+        except Exception as e:
+            print(f"Warning: Could not log confusion matrix: {e}")
     
     def _save_checkpoint(self, filename: str):
         """Save model checkpoint."""
