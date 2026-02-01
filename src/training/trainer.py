@@ -628,7 +628,8 @@ class Trainer:
         checkpoint_path = Path(self.config.training.checkpoint_dir) / filename
         
         if checkpoint_path.exists():
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            # weights_only=False needed for checkpoints with config objects (PyTorch 2.6+)
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             print(f"Loaded checkpoint: {checkpoint_path}")
         else:
