@@ -84,16 +84,14 @@ def get_train_transforms(
         A.GaussNoise(std_range=(0.02, 0.1), p=0.2),
     ])
     
-    # Regularization (Cutout-like)
+    # Regularization (Cutout-like) - Updated for albumentations 2.0+
     if coarse_dropout_p > 0:
         transforms_list.append(
             A.CoarseDropout(
-                max_holes=max_holes,
-                max_height=max_height,
-                max_width=max_width,
-                min_holes=1,
-                min_height=8,
-                min_width=8,
+                num_holes_range=(1, max_holes),
+                hole_height_range=(8, max_height),
+                hole_width_range=(8, max_width),
+                fill="constant",
                 fill_value=0,
                 p=coarse_dropout_p
             )
