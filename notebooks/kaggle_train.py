@@ -9,9 +9,23 @@ Instructions:
 3. Enable GPU (P100 or T4)
 4. Add W&B API key to Kaggle Secrets (key name: WANDB_API_KEY)
 5. Copy this entire file into a single code cell
-6. Modify EXPERIMENT_NAME and CONFIG as needed
+6. ⭐ ONLY CHANGE THE 2 LINES IN "EXPERIMENT CONFIG" SECTION BELOW ⭐
 7. Click "Save Version" > "Save & Run All (Commit)"
 """
+
+# ╔═══════════════════════════════════════════════════════════╗
+# ║  ⭐ EXPERIMENT CONFIG - ONLY CHANGE THESE 2 LINES! ⭐     ║
+# ╚═══════════════════════════════════════════════════════════╝
+
+EXPERIMENT_NAME = "exp1_squeezenet_baseline"   # ← Change for each run
+MODEL_NAME = "squeezenet1_1"                   # ← Options below
+
+# MODEL_NAME options:
+#   "squeezenet1_1"       - Baseline SqueezeNet (724K params)
+#   "squeezenet1_1_cbam"  - SqueezeNet + CBAM attention
+#   "mobilenetv2"         - MobileNetV2 comparison
+#   "efficientnet_b0"     - EfficientNet-B0 comparison
+#   "shufflenetv2"        - ShuffleNetV2 comparison
 
 # ============================================================
 # SETUP: Clone repository and install dependencies
@@ -44,22 +58,20 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "albumentations", 
 print("✓ Dependencies installed")
 
 # ============================================================
-# CONFIG: Modify these settings for your experiment
+# FIXED CONFIG (don't change unless needed)
 # ============================================================
 
-EXPERIMENT_NAME = "squeezenet_baseline_v1"  # Descriptive name for W&B
-
 CONFIG = {
-    # Data
+    # Data (fixed paths for Kaggle)
     "data_dir": "/kaggle/input/fusarium-wilt-disease-in-chickpea-dataset/FUSARIUM-22/dataset_raw",
     "splits_dir": "/kaggle/working/splits",
     
-    # Model: "squeezenet1_1", "squeezenet1_1_cbam", "mobilenetv2", "efficientnet_b0", "shufflenetv2"
-    "model_name": "squeezenet1_1",
+    # Model (uses MODEL_NAME from above)
+    "model_name": MODEL_NAME,
     "pretrained": True,
     "dropout": 0.5,
     
-    # Training
+    # Training hyperparameters (same for fair comparison)
     "batch_size": 32,
     "epochs": 50,
     "learning_rate": 1e-3,
@@ -67,11 +79,11 @@ CONFIG = {
     "optimizer": "adamw",
     "scheduler": "cosine",
     
-    # Class imbalance
+    # Class imbalance handling
     "use_class_weights": True,
     "use_weighted_sampler": False,
     
-    # W&B
+    # W&B tracking
     "wandb_enabled": True,
     "wandb_entity": "tklwin_msds",
     "wandb_project": "chickpea",
