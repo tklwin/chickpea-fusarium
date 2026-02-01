@@ -1,0 +1,52 @@
+# W&B Sweep Configuration for SqueezeNet + CBAM Hyperparameter Tuning
+# Usage: wandb sweep sweeps/sweep_config.yaml
+
+program: sweeps/train_sweep.py
+method: bayes  # Options: grid, random, bayes (recommended)
+metric:
+  name: val_acc
+  goal: maximize
+
+parameters:
+  # Model
+  model_name:
+    values: ["squeezenet1_1", "squeezenet1_1_cbam"]
+  
+  # Learning rate - log uniform distribution (good for LR search)
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-2
+  
+  # Dropout
+  dropout:
+    values: [0.3, 0.4, 0.5, 0.6, 0.7]
+  
+  # Batch size
+  batch_size:
+    values: [16, 32, 64]
+  
+  # Weight decay
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-6
+    max: 1e-3
+  
+  # Optimizer
+  optimizer:
+    values: ["adamw", "sgd"]
+  
+  # Scheduler
+  scheduler:
+    values: ["cosine", "step", "plateau"]
+  
+  # Class imbalance
+  use_class_weights:
+    values: [true, false]
+
+# Early terminate poorly performing runs
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 3
+  s: 2
