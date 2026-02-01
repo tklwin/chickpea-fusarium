@@ -22,7 +22,7 @@ import sys
 # Clone the repository (shallow clone for speed)
 subprocess.run([
     "git", "clone", "--depth", "1",
-    "https://github.com/YOUR_USERNAME/chickpea-fusarium.git"  # TODO: Update with your repo
+    "https://github.com/tklwin/chickpea-fusarium.git"  # TODO: Update with your repo
 ], check=True)
 
 # Add to path
