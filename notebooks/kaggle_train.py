@@ -18,18 +18,33 @@ Instructions:
 
 import subprocess
 import sys
+import os
 
 # Clone the repository (shallow clone for speed)
-subprocess.run([
-    "git", "clone", "--depth", "1",
-    "https://github.com/tklwin/chickpea-fusarium.git"  # TODO: Update with your repo
-], check=True)
+REPO_PATH = '/kaggle/working/chickpea-fusarium'
 
-# Add to path
-sys.path.insert(0, '/kaggle/working/chickpea-fusarium')
+if not os.path.exists(REPO_PATH):
+    subprocess.run([
+        "git", "clone", "--depth", "1",
+        "https://github.com/tklwin/chickpea-fusarium.git",
+        REPO_PATH
+    ], check=True)
+    print(f"✓ Repository cloned to {REPO_PATH}")
+else:
+    print(f"✓ Repository already exists at {REPO_PATH}")
+
+# Add to path (MUST be done before any src imports)
+if REPO_PATH not in sys.path:
+    sys.path.insert(0, REPO_PATH)
+    print(f"✓ Added {REPO_PATH} to Python path")
+
+# Verify the path is correct
+print(f"Current sys.path[0]: {sys.path[0]}")
+print(f"Files in repo: {os.listdir(REPO_PATH)}")
 
 # Install additional dependencies if needed
-# subprocess.run([sys.executable, "-m", "pip", "install", "-q", "albumentations", "wandb"])
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "albumentations", "wandb"], check=True)
+print("✓ Dependencies installed")
 
 # ============================================================
 # CONFIG: Modify these settings for your experiment
@@ -72,6 +87,7 @@ CONFIG = {
 # STEP 1: Create Data Splits (run once, then comment out)
 # ============================================================
 
+# Import AFTER path is set
 from src.data.split import create_splits
 
 # Only run this once to create splits
