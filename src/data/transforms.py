@@ -91,8 +91,7 @@ def get_train_transforms(
                 num_holes_range=(1, max_holes),
                 hole_height_range=(8, max_height),
                 hole_width_range=(8, max_width),
-                fill="constant",
-                fill_value=0,
+                fill=0,  # Fill with black (0) - numeric value required
                 p=coarse_dropout_p
             )
         )
