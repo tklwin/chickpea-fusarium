@@ -1,15 +1,16 @@
 """
-Kaggle Training Script
-======================
-Copy this to a Kaggle notebook cell to run experiments.
+Kaggle Training Script (Background Run / Save Version)
+=======================================================
+For Kaggle "Save Version" background execution.
 
 Instructions:
 1. Create a new Kaggle notebook
 2. Add the Fusarium-22 dataset as input
 3. Enable GPU (P100 or T4)
-4. Copy this entire file into a code cell
-5. Modify the CONFIG section as needed
-6. Run!
+4. Add W&B API key to Kaggle Secrets (key name: WANDB_API_KEY)
+5. Copy this entire file into a single code cell
+6. Modify EXPERIMENT_NAME and CONFIG as needed
+7. Click "Save Version" > "Save & Run All (Commit)"
 """
 
 # ============================================================
@@ -19,30 +20,26 @@ Instructions:
 import subprocess
 import sys
 import os
+import shutil
 
-# Clone the repository (shallow clone for speed)
 REPO_PATH = '/kaggle/working/chickpea-fusarium'
 
-if not os.path.exists(REPO_PATH):
-    subprocess.run([
-        "git", "clone", "--depth", "1",
-        "https://github.com/tklwin/chickpea-fusarium.git",
-        REPO_PATH
-    ], check=True)
-    print(f"✓ Repository cloned to {REPO_PATH}")
-else:
-    print(f"✓ Repository already exists at {REPO_PATH}")
+# Always get fresh code for background runs
+if os.path.exists(REPO_PATH):
+    shutil.rmtree(REPO_PATH)
+    
+subprocess.run([
+    "git", "clone", "--depth", "1",
+    "https://github.com/tklwin/chickpea-fusarium.git",
+    REPO_PATH
+], check=True)
+print(f"✓ Repository cloned to {REPO_PATH}")
 
 # Add to path (MUST be done before any src imports)
-if REPO_PATH not in sys.path:
-    sys.path.insert(0, REPO_PATH)
-    print(f"✓ Added {REPO_PATH} to Python path")
+sys.path.insert(0, REPO_PATH)
+print(f"✓ Added {REPO_PATH} to Python path")
 
-# Verify the path is correct
-print(f"Current sys.path[0]: {sys.path[0]}")
-print(f"Files in repo: {os.listdir(REPO_PATH)}")
-
-# Install additional dependencies if needed
+# Install additional dependencies
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "albumentations", "wandb"], check=True)
 print("✓ Dependencies installed")
 
@@ -84,13 +81,12 @@ CONFIG = {
 }
 
 # ============================================================
-# STEP 1: Create Data Splits (run once, then comment out)
+# STEP 1: Create Data Splits
 # ============================================================
 
 # Import AFTER path is set
 from src.data.split import create_splits
 
-# Only run this once to create splits
 splits = create_splits(
     data_dir=CONFIG["data_dir"],
     output_dir=CONFIG["splits_dir"],
@@ -194,6 +190,8 @@ print("Download from /kaggle/working/")
 # STEP 5: Generate Evaluation Report
 # ============================================================
 
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for background runs
 import matplotlib.pyplot as plt
 from src.training.metrics import plot_confusion_matrix, plot_training_curves
 
@@ -205,7 +203,8 @@ fig = plot_training_curves(
     trainer.history['val_acc'],
     save_path="/kaggle/working/training_curves.png"
 )
-plt.show()
+plt.close(fig)
+print("✓ Training curves saved to /kaggle/working/training_curves.png")
 
 # Plot confusion matrix (need predictions)
 import torch
@@ -228,7 +227,8 @@ fig = plot_confusion_matrix(
     np.array(all_preds),
     save_path="/kaggle/working/confusion_matrix.png"
 )
-plt.show()
+plt.close(fig)
+print("✓ Confusion matrix saved to /kaggle/working/confusion_matrix.png")
 
 print("\n" + "=" * 60)
 print("EXPERIMENT COMPLETE!")
