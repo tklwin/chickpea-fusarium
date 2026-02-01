@@ -22,7 +22,7 @@ Instructions:
 # ║  CONFIGURATION - SET YOUR SWEEP ID HERE                   ║
 # ╚═══════════════════════════════════════════════════════════╝
 
-SWEEP_ID = "tklwin_msds/chickpea/YOUR_SWEEP_ID"  # ← Replace with your sweep ID
+SWEEP_ID = "tklwin_msds/chickpea-fusarium-sweeps/hms45hlw"
 NUM_RUNS = 1  # Number of runs per Kaggle session (1 is safest)
 
 # ============================================================
